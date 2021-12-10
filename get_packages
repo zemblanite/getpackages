@@ -157,6 +157,21 @@ function haproxy() {
   )
 }
 
+function graalvm() {
+  [[ "$1" =~ [0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2} ]] || \
+    log error "$1" : bad format for "${FUNCNAME[@]}" version
+  create_output_dir "${FUNCNAME[0]}" "$1"
+  (cd "${OUTPUT_DIR}/$1" || \
+    log error Failed to move too output-dir : "${OUTPUT_DIR}"
+   trap 'log error download failed : line ${LINENO} ${BASH_COMMAND}' ERR
+   log info Starting "${FUNCNAME[0]}" downloads ...
+   curl -fsO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-"$1"/graalvm-ce-java11-linux-amd64-"$1".tar.gz
+   curl -fsO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-"$1"/graalvm-ce-java17-linux-amd64-"$1".tar.gz
+   trap - ERR
+   log info "${FUNCNAME[0]}" downloads OK
+  )
+}
+
 [[ $# -eq 0 ]] && usage
 
 function main() {
@@ -173,7 +188,7 @@ function main() {
   [[ -d "${WORK_DIR}" ]] || \
     mkdir "${WORK_DIR}"
 
-  while getopts hf:e:c:d:k:p: OPT; do
+  while getopts hf:e:c:d:k:p:g: OPT; do
     case "$OPT" in
       h)
         usage
@@ -195,6 +210,9 @@ function main() {
         ;;
       p)
         haproxy "$OPTARG"
+        ;;
+      g)
+        graalvm "$OPTARG"
         ;;
       *)
         usage
