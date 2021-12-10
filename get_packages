@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+#
+# Script de récupération de différents paquets
+
+usage() {
+  echo -e "\e[1mNOM\e[0m"
+  echo -e "\t${0##*/} - Script to download specific packages, archives, ..."
+  echo -e "\n"
+  echo -e "\e[1mSYNOPSIS\e[0m"
+  echo -e "\t\e[1m${0##*/}\e[0m [\e[4moption\e[0m] \e[4mversion\e[0m ..."
+  echo -e "\n"
+  echo -e "\e[1mOPTIONS\e[0m"
+  echo -e "\t\e[1m-c\e[0m \e[4mversion\e[0m\n\t\t get confluent"
+  echo -e "\t\e[1m-d\e[0m \e[4mversion\e[0m\n\t\t get cockroachdb"
+  echo -e "\t\e[1m-e\e[0m \e[4mversion\e[0m\n\t\t get elastic stack"
+  echo -e "\t\e[1m-f\e[0m \e[4mfile_path\e[0m\n\t\t download from conf file using function names"
+  echo -e "\t\t i.e : \e[4mfunction_name\e[0m \e[4mversion\e[0m"
+  echo -e "\t\t       \e[4mfunction_name\e[0m \e[4mversion\e[0m"
+  echo -e "\t\t       ..."
+  echo -e "\t\t e.g : confluent 7.0.0"
+  echo -e "\t\t       elastic 7.1.15"
+  echo -e "\t\t       ..."
+  echo -e "\t\t list of script functions : $(declare -F |cut -d' ' -f3 |tr '\n' ' ')"
+  echo -e "\t\e[1m-h\e[0m \n\t\t print this message"
+  echo -e "\t\e[1m-k\e[0m \e[4mversion\e[0m\n\t\t get keepalived"
+  echo -e "\t\e[1m-p\e[0m \e[4mversion\e[0m\n\t\t get haproxy"
+  echo -e "\n"
+ exit 2
+}
+
+log() {
+  if [[ "$1" = "error" ]]; then
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] ERROR $*" >&2
+    exit 1
+  elif [[ $1 = info ]]; then
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] INFO $*"
+  else
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] ERROR bat arguments for function log" >&2
+    exit 1
+  fi
+}
+
+function use_conf() {
+  while read -r name version; do
+   "$name" "$version" &
+  done < "$1"
+}
+
+function create_output_dir() {
+  OUTPUT_DIR="${WORK_DIR}/$1"
+  log info checking for output dir : "${OUTPUT_DIR}/$2"
+  [[ -d "${OUTPUT_DIR}" ]] ||\
+    mkdir "${OUTPUT_DIR}"
+  rm -rf "${OUTPUT_DIR:?}"/* &&\
+    mkdir "${OUTPUT_DIR}/$2"
+}
+
+function elastic() {
+  [[ "$1" =~ [0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2} ]] || \
+    log error "$1" : bad format for "${FUNCNAME[0]}" version
+  create_output_dir "${FUNCNAME[0]}" "$1"
+  (cd "${OUTPUT_DIR}/$1" || \
+    log error Failed to move too output-dir : "${OUTPUT_DIR}"
+   trap 'log error download failed : line ${LINENO} ${BASH_COMMAND}' ERR
+   log info Starting "${FUNCNAME[0]}" downloads ...
+   curl -fsO https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-"$1"-x86_64.rpm
+   curl -fsO https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-"$1"-amd64.deb
+
+   curl -fsO https://artifacts.elastic.co/downloads/kibana/kibana-"$1"-x86_64.rpm
+   curl -fsO https://artifacts.elastic.co/downloads/kibana/kibana-"$1"-amd64.deb
+   docker pull docker.elastic.co/kibana/kibana:"$1" &>/dev/null
+   docker save -o ./kibana-"$1".docker docker.elastic.co/kibana/kibana:"$1" &>/dev/null
+   docker rmi docker.elastic.co/kibana/kibana:"$1" &>/dev/null
+
+   curl -fsO https://artifacts.elastic.co/downloads/logstash/logstash-"$1"-x86_64.rpm
+   curl -fsO https://artifacts.elastic.co/downloads/logstash/logstash-"$1"-amd64.deb
+
+   curl -fsO https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-"$1"-x86_64.rpm
+   curl -fsO https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-"$1"-amd64.deb
+
+   curl -fsO https://artifacts.elastic.co/downloads/beats/metricbeat/metricbeat-"$1"-x86_64.rpm
+   curl -fsO https://artifacts.elastic.co/downloads/beats/metricbeat/metricbeat-"$1"-amd64.deb
+
+   curl -fsO https://artifacts.elastic.co/downloads/beats/packetbeat/packetbeat-"$1"-x86_64.rpm
+   curl -fsO https://artifacts.elastic.co/downloads/beats/packetbeat/packetbeat-"$1"-amd64.deb
+
+   curl -fsO https://artifacts.elastic.co/downloads/beats/heartbeat/heartbeat-"$1"-x86_64.rpm
+   curl -fsO https://artifacts.elastic.co/downloads/beats/heartbeat/heartbeat-"$1"-amd64.deb
+
+   curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-phonetic/analysis-phonetic-"$1".zip
+   curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"$1".zip
+   curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/ingest-attachment/ingest-attachment-"$1".zip
+   curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-s3/repository-s3-"$1".zip
+   curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-"$1".zip
+   trap - ERR
+   log info "${FUNCNAME[0]}" downloads OK
+  )
+}
+
+function confluent() {
+  [[ "$1" =~ [0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2} ]] || \
+    log error "$1" : bad format for "${FUNCNAME[0]}" version
+  create_output_dir "${FUNCNAME[0]}" "$1"
+  (cd "${OUTPUT_DIR}/$1" || \
+    log error Failed to move too output-dir : "${OUTPUT_DIR}"
+   trap 'log error download failed : line ${LINENO} ${BASH_COMMAND}' ERR
+   log info Starting "${FUNCNAME[0]}" downloads ...
+   curl -fsO http://packages.confluent.io/archive/"${1%.*}"/confluent-community-"$1".tar.gz
+   trap - ERR
+   log info "${FUNCNAME[0]}" downloads OK
+ )
+}
+
+function cockroachdb() {
+  [[ "$1" =~ [0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2} ]] || \
+    log error "$1" : bad format for "${FUNCNAME[0]}" version
+  create_output_dir "${FUNCNAME[0]}" "$1"
+  (cd "${OUTPUT_DIR}/$1" || \
+    log error Failed to move too output-dir : "${OUTPUT_DIR}"
+   trap 'log error download failed : line ${LINENO} ${BASH_COMMAND}' ERR
+   log info Starting "${FUNCNAME[0]}" downloads ...
+   curl -fsO  https://binaries.cockroachdb.com/cockroach-v"$1".linux-amd64.tgz
+   trap - ERR
+   log info "${FUNCNAME[0]}" downloads OK
+  )
+}
+
+function keepalived() {
+  [[ "$1" =~ [0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2} ]] || \
+    log error "$1" : bad format for "${FUNCNAME[0]}" version
+  create_output_dir "${FUNCNAME[0]}" "$1"
+  (cd "${OUTPUT_DIR}/$1" || \
+    log error Failed to move too output-dir : "${OUTPUT_DIR}"
+   trap 'log error download failed : line ${LINENO} ${BASH_COMMAND}' ERR
+   log info Starting "${FUNCNAME[0]}" downloads ...
+   curl -fsO  https://www.keepalived.org/software/keepalived-"$1".tar.gz
+   trap - ERR
+   log info "${FUNCNAME[0]}" downloads OK
+  )
+}
+
+function haproxy() {
+  [[ "$1" =~ [0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2} ]] || \
+    log error "$1" : bad format for "${FUNCNAME[0]}" version
+  create_output_dir "${FUNCNAME[0]}" "$1"
+  (cd "${OUTPUT_DIR}/$1" || \
+    log error Failed to move too output-dir : "${OUTPUT_DIR}"
+   trap 'log error download failed : line ${LINENO} ${BASH_COMMAND}' ERR
+   log info Starting "${FUNCNAME[0]}" downloads ...
+   curl -fsO  https://www.haproxy.org/download/"${1%.*}"/src/haproxy-"$1".tar.gz
+   trap - ERR
+   log info "${FUNCNAME[0]}" downloads OK
+  )
+}
+
+[[ $# -eq 0 ]] && usage
+
+function main() {
+  if ! command -v docker &>/dev/null
+  then
+    log error docker command does not exist, install it first
+    exit 1
+  fi
+
+  [[ -x $(which docker) ]] || \
+    log error docker not executable, maybe add "$USER" to docker group
+
+  WORK_DIR="${0%/*}/workdir"
+  [[ -d "${WORK_DIR}" ]] || \
+    mkdir "${WORK_DIR}"
+
+  while getopts hf:e:c:d:k:p: OPT; do
+    case "$OPT" in
+      h)
+        usage
+        ;;
+      f)
+        use_conf "$OPTARG"
+        ;;
+      e)
+        elastic "$OPTARG"
+        ;;
+      c)
+        confluent "$OPTARG"
+        ;;
+      d)
+        cockroachdb"$OPTARG"
+        ;;
+      k)
+        keepalived "$OPTARG"
+        ;;
+      p)
+        haproxy "$OPTARG"
+        ;;
+      *)
+        usage
+        ;;
+    esac
+  done
+
+  shift $(( OPTIND - 1 ))
+  OPTIND=1
+  wait
+}
+
+main "$@"

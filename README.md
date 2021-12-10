@@ -1,2 +1,0 @@
-# getpackages
-script for downloads 
