@@ -11,7 +11,7 @@ A bash script for downloading some dependencies
 
 * UNIX family OS
 * docker
-* bash but common
+* bash but come on
 
 ### Installing
 
@@ -29,6 +29,10 @@ just clone it
 ```
 ./get_packages -h
 ```
+
+## TODO
+
+python ?
 
 ## Authors
 
