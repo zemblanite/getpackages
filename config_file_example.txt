@@ -1,4 +1,4 @@
-elastic 7.15.1
+elastic 7.17.1
 confluent 7.0.0
 cockroachdb 21.2.2
 keepalived 2.2.4

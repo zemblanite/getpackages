@@ -96,6 +96,18 @@ function elastic() {
    curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/ingest-attachment/ingest-attachment-"$1".zip
    curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-s3/repository-s3-"$1".zip
    curl -fsO https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-"$1".zip
+
+   docker pull docker.elastic.co/logstash/logstash:"$1" &>/dev/null
+   docker stop logstash_plugins &>/dev/null
+   docker rm logstash_plugins &>/dev/null
+   docker run --name logstash_plugins -d docker.elastic.co/logstash/logstash:"$1" &>/dev/null
+   docker container exec logstash_plugins bin/logstash-plugin update &>/dev/null
+   docker container exec  logstash_plugins bin/logstash-plugin prepare-offline-pack --output /tmp/logstash-offline-plugins-"$1"-$(date +"%Y%m%d").zip logstash-filter* logstash-codec* logstash-input* logstash-output* &>/dev/null
+   docker cp logstash_plugins:/tmp/logstash-offline-plugins-"$1"-$(date +"%Y%m%d").zip . &>/dev/null
+   docker stop logstash_plugins &>/dev/null
+   docker rm logstash_plugins &>/dev/null
+   docker rmi docker.elastic.co/logstash/logstash:"$1" &>/dev/null
+
    trap - ERR
    log info "${FUNCNAME[0]}" downloads OK
   )

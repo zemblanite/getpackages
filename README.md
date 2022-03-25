@@ -9,7 +9,7 @@ A bash script for downloading some dependencies
 
 ### Dependencies
 
-* UNIX family OS
+* linux distribution
 * docker
 * bash but come on
 
